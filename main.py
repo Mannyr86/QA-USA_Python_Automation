@@ -1,4 +1,3 @@
-import data
 from helpers import is_url_reachable
 from data import URBAN_ROUTES_URL
 
