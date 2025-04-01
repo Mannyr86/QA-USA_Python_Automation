@@ -41,9 +41,9 @@ class TestUrbanRoutes:
         pass
 
     def test_order_2_ice_creams(self):
-    for i in range(2):  # Loop runs twice
-        # Add in S8
-        pass
+        for i in range(2):  # Loop runs twice
+            # Add in S8
+            pass
 
     def test_car_search_model_appears(self):
         # Add in S8
