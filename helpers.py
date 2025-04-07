@@ -1,49 +1,74 @@
+import json
+import time
+import ssl
+import urllib.request
+import logging
+from selenium.common.exceptions import WebDriverException, TimeoutException
+from urllib.error import URLError
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
 def retrieve_phone_code(driver) -> str:
-    """This code retrieves phone confirmation number and returns it as a string.
-    Use it when application waits for the confirmation code to pass it into your tests.
-    The phone confirmation code can only be obtained after it was requested in application."""
+    """
+    Retrieves the phone confirmation code from browser logs using CDP.
 
-    import json
-    import time
-    from selenium.common import WebDriverException
-    code = None
-    for i in range(10):
+    Use this only after the code is requested in the application.
+    Returns:
+        str: Phone confirmation code.
+    Raises:
+        TimeoutException: If the code is not found within the retry limit.
+    """
+    for attempt in range(1, 11):  # Retry 10 times
         try:
-            logs = [log["message"] for log in driver.get_log('performance') if log.get("message")
-                    and 'api/v1/number?number' in log.get("message")]
-            for log in reversed(logs):
-                message_data = json.loads(log)["message"]
-                body = driver.execute_cdp_cmd('Network.getResponseBody',
-                                              {'requestId': message_data["params"]["requestId"]})
-                code = ''.join([x for x in body['body'] if x.isdigit()])
-        except WebDriverException:
+            logs = [
+                log["message"]
+                for log in driver.get_log('performance')
+                if log.get("message") and 'api/v1/number?number' in log["message"]
+            ]
+            if logs:
+                for log in reversed(logs):
+                    message_data = json.loads(log)["message"]
+                    body = driver.execute_cdp_cmd(
+                        'Network.getResponseBody',
+                        {'requestId': message_data["params"]["requestId"]}
+                    )
+                    body_str = body.get('body', '') if body else ''
+                    if isinstance(body_str, str) and body_str:
+                        code = ''.join(filter(lambda c: c.isdigit(), body_str))
+                        if code:
+                            logging.info(f"Phone code found: {code}")
+                            return code  # Return code as soon as it's found
+        except WebDriverException as e:
+            logging.warning(f"Attempt {attempt}: WebDriverException occurred: {str(e)}. Retrying...")
             time.sleep(1)
-            continue
-        if not code:
-            raise Exception("No phone confirmation code found.\n"
-                            "Please use retrieve_phone_code only after the code was requested in your application.")
-        return code
+        except Exception as e:
+            logging.error(f"An unexpected error occurred during code retrieval: {str(e)}")
+            raise TimeoutException("Timeout while trying to retrieve phone confirmation code.")
 
-# Checks if Routes is up and running. Do not change
-def is_url_reachable(url):
-    """Check if the URL can be reached. Pass the URL for Urban Routes as a parameter.
-    If it can be reached, it returns True, otherwise it returns False"""
+    raise TimeoutException(
+        "Phone confirmation code not found after 10 attempts. Make sure the code was requested in the application."
+    )
 
-    import ssl
-    import urllib.request
+def is_url_reachable(url: str) -> bool:
+    """
+    Checks if the Urban Routes URL is reachable.
 
+    Args:
+        url (str): The URL to check.
+    Returns:
+        bool: True if reachable, False otherwise.
+    """
     try:
         ssl_ctx = ssl.create_default_context()
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE
 
         with urllib.request.urlopen(url, context=ssl_ctx) as response:
-            # print("Response Status Code:", response.status) #for debugging purposes
-            if response.status == 200:
-                 return True
-            else:
-                return False
+            return response.status == 200
+    except URLError as e:
+        logging.error(f"URL check failed: {str(e)}")
+        return False
     except Exception as e:
-        print (e)
-
-    return False
+        logging.error(f"An unexpected error occurred: {str(e)}")
+        return False
