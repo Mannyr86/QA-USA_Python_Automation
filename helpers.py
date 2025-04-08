@@ -9,18 +9,25 @@ from urllib.error import URLError
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
+
 def retrieve_phone_code(driver) -> str:
     """
     Retrieves the phone confirmation code from browser logs using CDP.
 
     Use this only after the code is requested in the application.
+
+    Args:
+        driver: The Selenium WebDriver instance.
+
     Returns:
         str: Phone confirmation code.
+
     Raises:
         TimeoutException: If the code is not found within the retry limit.
     """
     for attempt in range(1, 11):  # Retry 10 times
         try:
+            # Fetch browser logs related to phone number confirmation API
             logs = [
                 log["message"]
                 for log in driver.get_log('performance')
@@ -46,16 +53,19 @@ def retrieve_phone_code(driver) -> str:
             logging.error(f"An unexpected error occurred during code retrieval: {str(e)}")
             raise TimeoutException("Timeout while trying to retrieve phone confirmation code.")
 
+    # Raise exception if the code is not found after 10 attempts
     raise TimeoutException(
         "Phone confirmation code not found after 10 attempts. Make sure the code was requested in the application."
     )
 
+
 def is_url_reachable(url: str) -> bool:
     """
-    Checks if the Urban Routes URL is reachable.
+    Checks if the given URL is reachable.
 
     Args:
         url (str): The URL to check.
+
     Returns:
         bool: True if reachable, False otherwise.
     """
